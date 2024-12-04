@@ -51,9 +51,11 @@ if len(y_train.shape) != 2:
 
 # Define the LSTM model
 model = Sequential()
-model.add(LSTM(64, input_shape=(X_train.shape[1], X_train.shape[2]), return_sequences=False))
+model.add(LSTM(128, input_shape=(X_train.shape[1], X_train.shape[2]), return_sequences=False))
 model.add(Dropout(0.2))
-model.add(Dense(128, activation='relu'))
+model.add(Dense(256, activation='relu'))
+model.add(Dropout(0.2))
+model.add(Dense(256, activation='relu'))
 model.add(Dropout(0.2))
 model.add(Dense(y_train.shape[1], activation='softmax'))  # Number of classes in the output layer
 
@@ -61,7 +63,8 @@ model.add(Dense(y_train.shape[1], activation='softmax'))  # Number of classes in
 model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
 # Train the model
-model.fit(X_train, y_train, epochs=10, batch_size=64, validation_data=(X_test, y_test))
+model.fit(X_train, y_train, epochs=250, batch_size=32
+          , validation_data=(X_test, y_test))
 
 # Predict on the test data
 y_pred = model.predict(X_test)

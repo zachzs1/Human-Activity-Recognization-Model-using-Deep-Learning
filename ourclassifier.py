@@ -42,7 +42,7 @@ def predict_test(train_data, train_labels, test_data, num_classes):
     # Build and train CNN model
     input_shape = (train_data.shape[1], train_data.shape[2])
     model = build_cnn_model(input_shape, num_classes)
-    model.fit(train_data, train_labels_cat, epochs=10, batch_size=32, verbose=1)
+    model.fit(train_data, train_labels_cat, epochs=10, batch_size=128, verbose=1)
 
     # Predict on test data
     test_outputs = model.predict(test_data)
