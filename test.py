@@ -55,15 +55,13 @@ model.add(LSTM(128, input_shape=(X_train.shape[1], X_train.shape[2]), return_seq
 model.add(Dropout(0.2))
 model.add(Dense(256, activation='relu'))
 model.add(Dropout(0.2))
-model.add(Dense(256, activation='relu'))
-model.add(Dropout(0.2))
 model.add(Dense(y_train.shape[1], activation='softmax'))  # Number of classes in the output layer
 
 # Compile the model
 model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
 # Train the model
-model.fit(X_train, y_train, epochs=250, batch_size=32
+model.fit(X_train, y_train, epochs=50, batch_size=32
           , validation_data=(X_test, y_test))
 
 # Predict on the test data
