@@ -48,33 +48,37 @@ if len(X_train.shape) != 3:
 # Check if y_train has the correct shape (samples, num_classes)
 if len(y_train.shape) != 2:
     raise ValueError(f"y_train has incorrect shape: {y_train.shape}. Expected shape: (samples, num_classes).")
+def predict_test(train_data, train_labels, test_data):
+    # Define the LSTM model
+    model = Sequential()
+    model.add(LSTM(128, input_shape=(X_train.shape[1], X_train.shape[2]), return_sequences=False))
+    model.add(Dropout(0.2))
+    model.add(Dense(256, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(y_train.shape[1], activation='softmax'))  # Number of classes in the output layer
 
-# Define the LSTM model
-model = Sequential()
-model.add(LSTM(128, input_shape=(X_train.shape[1], X_train.shape[2]), return_sequences=False))
-model.add(Dropout(0.2))
-model.add(Dense(256, activation='relu'))
-model.add(Dropout(0.2))
-model.add(Dense(y_train.shape[1], activation='softmax'))  # Number of classes in the output layer
+    # Compile the model
+    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-# Compile the model
-model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    # Train the model
+    model.fit(X_train, y_train, epochs=50, batch_size=32
+            , validation_data=(X_test, y_test))
 
-# Train the model
-model.fit(X_train, y_train, epochs=50, batch_size=32
-          , validation_data=(X_test, y_test))
+    # Predict on the test data
+    y_pred = model.predict(X_test)
 
-# Predict on the test data
-y_pred = model.predict(X_test)
+    # Convert predictions to class labels
+    y_pred_classes = np.argmax(y_pred, axis=1)
+    return y_pred_classes
+if __name__ == "__main__":
+    # Make predictions on the test data
+    y_pred_classes = predict_test(X_train, y_train, X_test)
+    y_test_classes = np.argmax(y_test, axis=1)
 
-# Convert predictions to class labels
-y_pred_classes = np.argmax(y_pred, axis=1)
-y_test_classes = np.argmax(y_test, axis=1)
+    # Calculate F1 score
+    f1_micro = f1_score(y_test_classes, y_pred_classes, average='micro')
+    f1_macro = f1_score(y_test_classes, y_pred_classes, average='macro')
 
-# Calculate F1 score
-f1_micro = f1_score(y_test_classes, y_pred_classes, average='micro')
-f1_macro = f1_score(y_test_classes, y_pred_classes, average='macro')
-
-# Print the F1 scores
-print(f"Micro-averaged F1 score: {f1_micro}")
-print(f"Macro-averaged F1 score: {f1_macro}")
+    # Print the F1 scores
+    print(f"Micro-averaged F1 score: {f1_micro}")
+    print(f"Macro-averaged F1 score: {f1_macro}")
