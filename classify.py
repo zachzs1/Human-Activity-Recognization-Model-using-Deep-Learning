@@ -4,17 +4,17 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score
 import tensorflow as tf
-from tf.keras.models import Sequential
-from tf.keras.layers import LSTM, Dense, Dropout
-from tf.keras.utils import to_categorical
+from keras.models import Sequential
+from keras.layers import LSTM, Dense, Dropout
+from keras.utils import to_categorical
 
 # Load your IMU data (example file names)
 acc_x_train = pd.read_csv('Acc_x_train_1.csv', header=None).values
 acc_y_train = pd.read_csv('Acc_y_train_1.csv', header=None).values
 acc_z_train = pd.read_csv('Acc_z_train_1.csv', header=None).values
-gyro_x_train = pd.read_csv('Gyro_x_train_1.csv', header=None).values
-gyro_y_train = pd.read_csv('Gyro_y_train_1.csv', header=None).values
-gyro_z_train = pd.read_csv('Gyro_z_train_1.csv', header=None).values
+gyro_x_train = pd.read_csv('Gyr_x_train_1.csv', header=None).values
+gyro_y_train = pd.read_csv('Gyr_y_train_1.csv', header=None).values
+gyro_z_train = pd.read_csv('Gyr_z_train_1.csv', header=None).values
 
 # Load the activity labels
 labels = pd.read_csv('labels_train_1.csv', header=None).values
@@ -52,7 +52,7 @@ def predict_test(train_data, train_labels, test_data):
     # Train the model
     model.fit(train_data, train_labels, epochs=10, batch_size=64)
 
-    # Predict on the test set
+    # Predict on the test set 
     y_pred = model.predict(test_data)
     y_pred_classes = np.argmax(y_pred, axis=1)  # Convert one-hot to class labels
     return y_pred_classes
