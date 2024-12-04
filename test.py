@@ -71,5 +71,9 @@ y_pred_classes = np.argmax(y_pred, axis=1)
 y_test_classes = np.argmax(y_test, axis=1)
 
 # Calculate F1 score
-f1 = f1_score(y_test_classes, y_pred_classes, average='weighted')
-print(f"F1 Score: {f1}")
+f1_micro = f1_score(y_test_classes, y_pred_classes, average='micro')
+f1_macro = f1_score(y_test_classes, y_pred_classes, average='macro')
+
+# Print the F1 scores
+print(f"Micro-averaged F1 score: {f1_micro}")
+print(f"Macro-averaged F1 score: {f1_macro}")
