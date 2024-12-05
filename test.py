@@ -7,24 +7,26 @@ import tensorflow as tf
 from keras.models import Sequential
 from keras.layers import LSTM, Dense, Dropout
 from keras.utils import to_categorical
+import matplotlib.pyplot as plt
+
 def predict_test(train_data, train_labels, test_data):
     # Define the LSTM model
     model = Sequential()
-    model.add(LSTM(128, input_shape=(train_data.shape[1], train_data.shape[2]), return_sequences=False))
+    model.add(LSTM(128, input_shape=(X_train.shape[1], X_train.shape[2]), return_sequences=False))
     model.add(Dropout(0.2))
     model.add(Dense(256, activation='relu'))
     model.add(Dropout(0.2))
-    model.add(Dense(train_labels.shape[1], activation='softmax'))  # Number of classes in the output layer
+    model.add(Dense(y_train.shape[1], activation='softmax'))  # Number of classes in the output layer
 
     # Compile the model
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
     # Train the model
-    model.fit(train_data, train_labels, epochs=10, batch_size=32
-            , validation_data=(test_data, y_test))
+    model.fit(X_train, y_train, epochs=10, batch_size=32
+            , validation_data=(X_test, y_test))
 
     # Predict on the test data
-    y_pred = model.predict(test_data)
+    y_pred = model.predict(X_test)
 
     # Convert predictions to class labels
     y_pred_classes = np.argmax(y_pred, axis=1)
@@ -83,3 +85,15 @@ if __name__ == "__main__":
     # Print the F1 scores
     print(f"Micro-averaged F1 score: {f1_micro}")
     print(f"Macro-averaged F1 score: {f1_macro}")
+
+    # Examine outputs compared to labels
+    n_test = y_test.size
+    plt.subplot(2, 1, 1)
+    plt.plot(np.arange(n_test), y_test, 'b.')
+    plt.xlabel('Time window')
+    plt.ylabel('Target')
+    plt.subplot(2, 1, 2)
+    plt.plot(np.arange(n_test), y_pred_classes, 'r.')
+    plt.xlabel('Time window')
+    plt.ylabel('Output (predicted target)')
+    plt.show()
