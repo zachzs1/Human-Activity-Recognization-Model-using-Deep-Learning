@@ -34,6 +34,8 @@ def predict_test(train_data, train_labels, test_data):
     model = Sequential()
     model.add(LSTM(128, input_shape=(X_train.shape[1], X_train.shape[2]), return_sequences=False))
     model.add(Dropout(0.2))
+    model.add(Dense(64, activation='relu'))  # 64 neurons, ReLU activation
+    model.add(Dropout(0.2))
     model.add(Dense(4, activation='softmax'))  # 4 output classes
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 

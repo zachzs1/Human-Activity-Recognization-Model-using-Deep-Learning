@@ -8,29 +8,73 @@ from keras.models import Sequential
 from keras.layers import LSTM, Dense, Dropout
 from keras.utils import to_categorical
 import matplotlib.pyplot as plt
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv1D, MaxPooling1D, LSTM, Dense, Dropout, BatchNormalization, Flatten, GlobalAveragePooling1D
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from sklearn.preprocessing import StandardScaler
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.optimizers import Adam
+import numpy as np
 
+# Function to smooth the predictions over a time window
+def smooth_predictions(y_pred_classes, window_size=5):
+    smoothed_predictions = []
+    for i in range(len(y_pred_classes)):
+        start_idx = max(0, i - window_size // 2)
+        end_idx = min(len(y_pred_classes), i + window_size // 2 + 1)
+        smoothed_predictions.append(np.argmax(np.bincount(y_pred_classes[start_idx:end_idx])))
+    return np.array(smoothed_predictions)
+
+# Main prediction function
 def predict_test(train_data, train_labels, test_data):
-    # Define the LSTM model
+    # Preprocessing: Scale the data
+    scaler = StandardScaler()
+    
+    # Reshape to 2D for scaling (flatten)
+    X_train = train_data.reshape(train_data.shape[0], -1)
+    X_test = test_data.reshape(test_data.shape[0], -1)
+
+    # Apply StandardScaler
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    # Reshape back to 3D for LSTM (time steps, features)
+    X_train = X_train.reshape((X_train.shape[0], 60, 6))  # 60 time steps, 6 features
+    X_test = X_test.reshape((X_test.shape[0], 60, 6))  # Same reshaping for test set
+
+    # Adjust train_labels to be 0-indexed for one-hot encoding
+    train_labels = train_labels - 1  # Shift labels from [1, 4] to [0, 3]
+    y_train = to_categorical(train_labels, num_classes=4)
+
+    # Define the CNN-LSTM model
     model = Sequential()
-    model.add(LSTM(128, input_shape=(X_train.shape[1], X_train.shape[2]), return_sequences=False))
-    model.add(Dropout(0.2))
-    model.add(Dense(256, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(y_train.shape[1], activation='softmax'))  # Number of classes in the output layer
+    
+    # Convolutional layers for feature extraction
+    
+    model.add(Conv1D(filters=128, kernel_size=7, activation='relu', input_shape=(60, 6)))
+    model.add(Conv1D(filters=64, kernel_size=5, activation='relu'))
+    model.add(Conv1D(filters=32, kernel_size=3, activation='relu'))
+    model.add(Dropout(0.3))
+    model.add(GlobalAveragePooling1D())
+    model.add(Dense(120, activation='relu'))
+    model.add(Dropout(0.3))
+    model.add(Dense(84, activation='relu'))
+    model.add(Dense(4, activation='softmax'))
+    model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.01), metrics=['accuracy'])
+    # Fit the model with callbacks
+    model.fit(X_train, y_train, epochs=50, batch_size=32, validation_split=0.2, verbose=1)
 
-    # Compile the model
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-
-    # Train the model
-    model.fit(X_train, y_train, epochs=10, batch_size=32
-            , validation_data=(X_test, y_test))
-
-    # Predict on the test data
+    # Predict on test data
     y_pred = model.predict(X_test)
+    y_pred_classes = np.argmax(y_pred, axis=1)  # Convert softmax output to class labels
 
-    # Convert predictions to class labels
-    y_pred_classes = np.argmax(y_pred, axis=1)
+    # Shift back to original labels (1-4 instead of 0-3)
+    y_pred_classes = y_pred_classes + 1
+
     return y_pred_classes
+
+
+
 if __name__ == "__main__":
     
             # Load your IMU data (example file names)
@@ -85,15 +129,16 @@ if __name__ == "__main__":
     # Print the F1 scores
     print(f"Micro-averaged F1 score: {f1_micro}")
     print(f"Macro-averaged F1 score: {f1_macro}")
-
+    '''
     # Examine outputs compared to labels
-    n_test = y_test.size
+    n_test = test_labels.size
     plt.subplot(2, 1, 1)
-    plt.plot(np.arange(n_test), y_test, 'b.')
+    plt.plot(np.arange(n_test), test_labels, 'b.')
     plt.xlabel('Time window')
     plt.ylabel('Target')
     plt.subplot(2, 1, 2)
-    plt.plot(np.arange(n_test), y_pred_classes, 'r.')
+    plt.plot(np.arange(n_test), test_outputs, 'r.')
     plt.xlabel('Time window')
     plt.ylabel('Output (predicted target)')
     plt.show()
+    '''
