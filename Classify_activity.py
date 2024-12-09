@@ -38,11 +38,13 @@ def predict_test(train_data, train_labels, test_data):
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
     # Fit the model
-    model.fit(X_train, y_train, epochs=10, batch_size=32, validation_split=0.2, verbose=1)
+    model.fit(X_train, y_train, epochs=25, batch_size=32, validation_split=0.2, verbose=1)
 
     # Predict on test data
     y_pred = model.predict(X_test)
     y_pred_classes = np.argmax(y_pred, axis=1)
+
+    y_pred_classes = y_pred_classes + 1
 
     return y_pred_classes
 
