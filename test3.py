@@ -68,15 +68,15 @@ def predict_test(train_data, train_labels, test_data):
     model.add(Dense(4, activation='softmax'))
 
     # Compile the model
-    model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=.001), metrics=['accuracy'])
+    model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=1e-4), metrics=['accuracy'])
 
     # Training callbacks
     #early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-    #reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, min_lr=1e-5)
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, min_lr=1e-5)
 
     # Fit the model
     model.fit(X_train, y_train, epochs=50, batch_size=64, validation_split=0.2, verbose=1,
-               class_weight=class_weight_dict)
+               class_weight=class_weight_dict, callbacks=[reduce_lr])
 
     # Predict on test data
     y_pred = model.predict(X_test)
@@ -84,5 +84,19 @@ def predict_test(train_data, train_labels, test_data):
 
     # Shift back to original labels (1-4 instead of 0-3)
     y_pred_classes = y_pred_classes + 1
+
+    '''
+
+    def smooth_predictions(predictions, window_size=5):
+        smoothed = []
+        for i in range(len(predictions)):
+            start = max(0, i - window_size // 2)
+            end = min(len(predictions), i + window_size // 2 + 1)
+            smoothed.append(np.bincount(predictions[start:end]).argmax())
+        return np.array(smoothed)
+
+    y_pred_classes = smooth_predictions(y_pred_classes)
+
+    '''
 
     return y_pred_classes

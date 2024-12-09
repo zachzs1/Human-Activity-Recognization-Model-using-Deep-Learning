@@ -9,7 +9,8 @@ set 2
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score
-from test3 import predict_test
+from test4 import predict_test
+from sklearn.metrics import classification_report, confusion_matrix
 
 sensor_names = ['Acc_x', 'Acc_y', 'Acc_z', 'Gyr_x', 'Gyr_y', 'Gyr_z']
 train_suffix = '_train_1.csv'
@@ -52,3 +53,23 @@ plt.plot(np.arange(n_test), test_outputs, 'r.')
 plt.xlabel('Time window')
 plt.ylabel('Output (predicted target)')
 plt.show()
+
+ # Compute per-class metrics
+report = classification_report(test_labels, test_outputs, output_dict=True)
+f1_scores = [report[str(label)]['f1-score'] for label in range(1, 5)]  # Adjust range for your labels
+
+    # Visualize per-class F1 scores
+plt.figure(figsize=(8, 6))
+plt.bar(range(1, 5), f1_scores, tick_label=[f'Class {i}' for i in range(1, 5)])
+plt.title("Per-Class F1 Scores")
+plt.xlabel("Class")
+plt.ylabel("F1 Score")
+plt.ylim(0, 1)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.show()
+# Confusion matrix and classification report
+print("Classification Report:")
+print(classification_report(test_labels, test_outputs))
+cm = confusion_matrix(test_labels, test_outputs)
+print("Confusion Matrix:")
+print(cm)
