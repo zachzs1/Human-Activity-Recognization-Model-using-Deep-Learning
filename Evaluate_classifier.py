@@ -9,7 +9,7 @@ set 2
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score
-from test4 import predict_test
+from kmeans import predict_test
 from sklearn.metrics import classification_report, confusion_matrix
 
 sensor_names = ['Acc_x', 'Acc_y', 'Acc_z', 'Gyr_x', 'Gyr_y', 'Gyr_z']

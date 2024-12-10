@@ -1,7 +1,7 @@
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Conv1D, GlobalAveragePooling1D, Dense, Dropout, BatchNormalization
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import ReduceLROnPlateau
+from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping
 from tensorflow.keras.utils import to_categorical
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.class_weight import compute_class_weight
@@ -41,12 +41,14 @@ def predict_test(train_data, train_labels, test_data):
     model.add(Conv1D(filters=128, kernel_size=7, activation='relu', input_shape=(60, 6)))
     model.add(BatchNormalization())
     model.add(Dropout(0.2))
+    '''
     model.add(Conv1D(filters=64, kernel_size=5, activation='relu'))
     model.add(BatchNormalization())
     model.add(Dropout(0.2))
     model.add(Conv1D(filters=32, kernel_size=3, activation='relu'))
     model.add(BatchNormalization())
     model.add(Dropout(0.2))
+    '''
     model.add(GlobalAveragePooling1D())
     model.add(Dense(64, activation='relu'))
     model.add(Dropout(0.3))
@@ -57,12 +59,13 @@ def predict_test(train_data, train_labels, test_data):
     
     # Training callbacks
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, min_lr=1e-5)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
     
     # Fit the model
     model.fit(
         X_train, y_train,
         epochs=50, batch_size=64, validation_split=0.2, verbose=1,
-        class_weight=class_weight_dict, callbacks=[reduce_lr]
+        class_weight=class_weight_dict, callbacks=[reduce_lr, early_stopping]
     )
     
     # Predict on test data

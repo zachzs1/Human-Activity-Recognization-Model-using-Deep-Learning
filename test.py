@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score
 import tensorflow as tf
@@ -25,23 +26,23 @@ def smooth_predictions(y_pred_classes, window_size=5):
         smoothed_predictions.append(np.argmax(np.bincount(y_pred_classes[start_idx:end_idx])))
     return np.array(smoothed_predictions)
 
+def scale_data(train_data, test_data):
+    # Initialize the scaler
+    scaler = MinMaxScaler()
+
+    # Fit the scaler on the training data and transform it
+    train_data_scaled = scaler.fit_transform(train_data.reshape(-1, train_data.shape[-1])).reshape(train_data.shape)
+    
+    # Transform the test data using the same scaler
+    test_data_scaled = scaler.transform(test_data.reshape(-1, test_data.shape[-1])).reshape(test_data.shape)
+
+    return train_data_scaled, test_data_scaled
+
 # Main prediction function
 def predict_test(train_data, train_labels, test_data):
-    # Preprocessing: Scale the data
-    scaler = StandardScaler()
+
+    train_data_scaled, test_data_scaled = scale_data(train_data, test_data)
     
-    # Reshape to 2D for scaling (flatten)
-    X_train = train_data.reshape(train_data.shape[0], -1)
-    X_test = test_data.reshape(test_data.shape[0], -1)
-
-    # Apply StandardScaler
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
-
-    # Reshape back to 3D for LSTM (time steps, features)
-    X_train = X_train.reshape((X_train.shape[0], 60, 6))  # 60 time steps, 6 features
-    X_test = X_test.reshape((X_test.shape[0], 60, 6))  # Same reshaping for test set
-
     # Adjust train_labels to be 0-indexed for one-hot encoding
     train_labels = train_labels - 1  # Shift labels from [1, 4] to [0, 3]
     y_train = to_categorical(train_labels, num_classes=4)
@@ -52,20 +53,18 @@ def predict_test(train_data, train_labels, test_data):
     # Convolutional layers for feature extraction
     
     model.add(Conv1D(filters=128, kernel_size=7, activation='relu', input_shape=(60, 6)))
+    model.add(BatchNormalization())
     model.add(Conv1D(filters=64, kernel_size=5, activation='relu'))
-    model.add(Conv1D(filters=32, kernel_size=3, activation='relu'))
-    model.add(Dropout(0.3))
     model.add(GlobalAveragePooling1D())
     model.add(Dense(120, activation='relu'))
     model.add(Dropout(0.3))
-    model.add(Dense(84, activation='relu'))
     model.add(Dense(4, activation='softmax'))
-    model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.01), metrics=['accuracy'])
+    model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.0001), metrics=['accuracy'])
     # Fit the model with callbacks
-    model.fit(X_train, y_train, epochs=50, batch_size=32, validation_split=0.2, verbose=1)
+    model.fit(train_data_scaled, y_train, epochs=100, batch_size=16, validation_split=0.2, verbose=1)
 
     # Predict on test data
-    y_pred = model.predict(X_test)
+    y_pred = model.predict(test_data_scaled)
     y_pred_classes = np.argmax(y_pred, axis=1)  # Convert softmax output to class labels
 
     # Shift back to original labels (1-4 instead of 0-3)
