@@ -79,13 +79,13 @@ def create_multitask_model(input_shape_raw, input_shape_features, num_classes=4)
     # Feature Input
     input_features = Input(shape=input_shape_features, name="feature_input")
     y = layers.Dense(256, activation="relu")(input_features)
-    y = layers.Dropout(0.5)(y)
+    y = layers.Dropout(0.3)(y)
     y = layers.Dense(128, activation="relu")(y)
 
     # Fusion
     combined = layers.Concatenate()([x, y])
     z = layers.Dense(128, activation="relu")(combined)
-    z = layers.Dropout(0.5)(z)
+    z = layers.Dropout(0.3)(z)
 
     # Main Output
     main_output = layers.Dense(num_classes, activation="softmax", name="main_output")(z)
@@ -108,7 +108,28 @@ def create_multitask_model(input_shape_raw, input_shape_features, num_classes=4)
     )
     return model
 
-def predict_test(train_data, train_labels, test_data, confidence_threshold=0.9):
+def apply_confidence_threshold(predictions, class_idx, threshold):
+    """
+    Adjust predictions based on a confidence threshold for a specific class.
+    
+    Parameters:
+    - predictions: np.ndarray of shape (num_samples, num_classes), containing probability scores.
+    - class_idx: Index of the class to apply the threshold.
+    - threshold: Confidence threshold for the class.
+
+    Returns:
+    - Adjusted predictions with the same shape as input.
+    """
+    adjusted_predictions = predictions.copy()
+    confident_indices = predictions[:, class_idx] >= threshold
+
+    # Set all probabilities to zero for confident predictions
+    adjusted_predictions[confident_indices, :] = 0
+    # Assign 100% confidence to the class index for confident predictions
+    adjusted_predictions[confident_indices, class_idx] = 1
+    return adjusted_predictions
+
+def predict_test(train_data, train_labels, test_data, confidence_threshold=0.92):
     """
     Train a multi-task model with enhanced features and refine predictions for Class 4.
     """
@@ -146,13 +167,14 @@ def predict_test(train_data, train_labels, test_data, confidence_threshold=0.9):
             {"main_output": labels_val, "class_1_aux": (labels_val == 0).astype(int), "class_4_aux": (labels_val == 3).astype(int)},
         ),
         epochs= 50,
-        batch_size=64,
+        batch_size=32,
         verbose=1
     )
 
     # Predict test data
     predictions = model.predict([test_data, test_features])[0]  # Main output
-    predictions[:, 3] *= 1.7  # Boost Class 4 probabilities
-    final_labels = np.argmax(predictions, axis=1) + 1  # Convert to 1-4
+    #predictions[:, 3] *= 1.3  # Boost Class 4 probabilities
+    adjusted_predictions = apply_confidence_threshold(predictions, class_idx=3, threshold=confidence_threshold)
+    final_labels = np.argmax(adjusted_predictions, axis=1) + 1  # Convert to 1-4
 
     return final_labels
