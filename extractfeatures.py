@@ -4,6 +4,7 @@ from tensorflow.keras import layers, models, Input, regularizers
 from sklearn.utils.class_weight import compute_class_weight
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
+from scipy.stats import mode
 
 def extract_features(data):
     """
@@ -129,7 +130,28 @@ def apply_confidence_threshold(predictions, class_idx, threshold):
     adjusted_predictions[confident_indices, class_idx] = 1
     return adjusted_predictions
 
-def predict_test(train_data, train_labels, test_data, confidence_threshold=0.92):
+def smooth_predictions(predictions, window_size=5):
+    """
+    Apply mode filtering to smooth predictions over a sliding window.
+    
+    Parameters:
+    - predictions: 1D array of predicted class labels (e.g., [1, 2, 2, 4, ...]).
+    - window_size: Size of the sliding window (must be odd for symmetric smoothing).
+    
+    Returns:
+    - Smoothed predictions.
+    """
+    smoothed = predictions.copy()
+    half_window = window_size // 2
+
+    for i in range(len(predictions)):
+        start = max(0, i - half_window)
+        end = min(len(predictions), i + half_window + 1)
+        smoothed[i] = mode(predictions[start:end])[0][0]
+    
+    return smoothed
+
+def predict_test(train_data, train_labels, test_data, confidence_threshold=0.92, smoothing_window=5):
     """
     Train a multi-task model with enhanced features and refine predictions for Class 4.
     """
@@ -176,5 +198,6 @@ def predict_test(train_data, train_labels, test_data, confidence_threshold=0.92)
     #predictions[:, 3] *= 1.3  # Boost Class 4 probabilities
     adjusted_predictions = apply_confidence_threshold(predictions, class_idx=3, threshold=confidence_threshold)
     final_labels = np.argmax(adjusted_predictions, axis=1) + 1  # Convert to 1-4
+    smoothed_labels = smooth_predictions(final_labels, window_size=smoothing_window)
 
-    return final_labels
+    return smoothed_labels
