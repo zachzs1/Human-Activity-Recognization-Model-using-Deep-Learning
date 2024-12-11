@@ -53,7 +53,7 @@ def predict_test(train_data, train_labels, test_data, num_classes):
 # Run this code only if being used as a script
 if __name__ == "__main__":
     # Load labels and training sensor data into a 3-D array
-    labels = np.loadtxt('labels_train_1.csv', dtype='int')
+    labels = np.loadtxt('../Data/labels_train_1.csv', dtype='int')
     data_slice_0 = np.loadtxt(sensor_names[0] + '_train_1.csv', delimiter=',')
     data = np.empty((data_slice_0.shape[0], data_slice_0.shape[1], len(sensor_names)))
     data[:, :, 0] = data_slice_0

@@ -8,21 +8,21 @@ from scipy.stats import zscore
 from sklearn.preprocessing import StandardScaler
 
 # Load data
-acc_x_train = pd.read_csv('Acc_x_train_1.csv', header=None).values
-acc_y_train = pd.read_csv('Acc_y_train_1.csv', header=None).values
-acc_z_train = pd.read_csv('Acc_z_train_1.csv', header=None).values
-gyro_x_train = pd.read_csv('Gyr_x_train_1.csv', header=None).values
-gyro_y_train = pd.read_csv('Gyr_y_train_1.csv', header=None).values
-gyro_z_train = pd.read_csv('Gyr_z_train_1.csv', header=None).values
-labels_1 = pd.read_csv('labels_train_1.csv', header=None).values
+acc_x_train = pd.read_csv('../Data/Acc_x_train_1.csv', header=None).values
+acc_y_train = pd.read_csv('../Data/Acc_y_train_1.csv', header=None).values
+acc_z_train = pd.read_csv('../Data/Acc_z_train_1.csv', header=None).values
+gyro_x_train = pd.read_csv('../Data/Gyr_x_train_1.csv', header=None).values
+gyro_y_train = pd.read_csv('../Data/Gyr_y_train_1.csv', header=None).values
+gyro_z_train = pd.read_csv('../Data/Gyr_z_train_1.csv', header=None).values
+labels_1 = pd.read_csv('../Data/labels_train_1.csv', header=None).values
 
-acc_x_train_2 = pd.read_csv('Acc_x_train_2.csv', header=None).values
-acc_y_train_2 = pd.read_csv('Acc_y_train_2.csv', header=None).values
-acc_z_train_2 = pd.read_csv('Acc_z_train_2.csv', header=None).values
-gyro_x_train_2 = pd.read_csv('Gyr_x_train_2.csv', header=None).values
-gyro_y_train_2 = pd.read_csv('Gyr_y_train_2.csv', header=None).values
-gyro_z_train_2 = pd.read_csv('Gyr_z_train_2.csv', header=None).values
-labels_2 = pd.read_csv('labels_train_2.csv', header=None).values
+acc_x_train_2 = pd.read_csv('../Data/Acc_x_train_2.csv', header=None).values
+acc_y_train_2 = pd.read_csv('../Data/Acc_y_train_2.csv', header=None).values
+acc_z_train_2 = pd.read_csv('../Data/Acc_z_train_2.csv', header=None).values
+gyro_x_train_2 = pd.read_csv('../Data/Gyr_x_train_2.csv', header=None).values
+gyro_y_train_2 = pd.read_csv('../Data/Gyr_y_train_2.csv', header=None).values
+gyro_z_train_2 = pd.read_csv('../Data/Gyr_z_train_2.csv', header=None).values
+labels_2 = pd.read_csv('../Data/labels_train_2.csv', header=None).values
 
 # Combine sensor data for both datasets
 acc_x_train_combined = np.vstack((acc_x_train, acc_x_train_2))

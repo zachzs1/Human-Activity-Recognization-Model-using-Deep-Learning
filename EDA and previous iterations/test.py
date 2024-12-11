@@ -77,15 +77,15 @@ def predict_test(train_data, train_labels, test_data):
 if __name__ == "__main__":
     
             # Load your IMU data (example file names)
-    acc_x_train = pd.read_csv('Acc_x_train_1.csv', header=None).values
-    acc_y_train = pd.read_csv('Acc_y_train_1.csv', header=None).values
-    acc_z_train = pd.read_csv('Acc_z_train_1.csv', header=None).values
-    gyro_x_train = pd.read_csv('Gyr_x_train_1.csv', header=None).values
-    gyro_y_train = pd.read_csv('Gyr_y_train_1.csv', header=None).values
-    gyro_z_train = pd.read_csv('Gyr_z_train_1.csv', header=None).values
+    acc_x_train = pd.read_csv('../Data/Acc_x_train_1.csv', header=None).values
+    acc_y_train = pd.read_csv('../Data/Acc_y_train_1.csv', header=None).values
+    acc_z_train = pd.read_csv('../Data/Acc_z_train_1.csv', header=None).values
+    gyro_x_train = pd.read_csv('../Data/Gyr_x_train_1.csv', header=None).values
+    gyro_y_train = pd.read_csv('../Data/Gyr_y_train_1.csv', header=None).values
+    gyro_z_train = pd.read_csv('../Data/Gyr_z_train_1.csv', header=None).values
 
     # Load the activity labels
-    labels = pd.read_csv('labels_train_1.csv', header=None).values
+    labels = pd.read_csv('../Data/labels_train_1.csv', header=None).values
 
     # Stack the accelerometer and gyroscope data along the second axis (features axis)
     data = np.stack([acc_x_train, acc_y_train, acc_z_train, gyro_x_train, gyro_y_train, gyro_z_train], axis=-1)
