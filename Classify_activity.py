@@ -1,95 +1,209 @@
 import numpy as np
-import pandas as pd
-from sklearn.preprocessing import StandardScaler
+import tensorflow as tf
+from tensorflow.keras import layers, models, Input, regularizers
+from sklearn.utils.class_weight import compute_class_weight
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import f1_score
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
-from tensorflow.keras.utils import to_categorical
+from imblearn.over_sampling import SMOTE
+from scipy.stats import mode
+import random
+
 
 def predict_test(train_data, train_labels, test_data):
-    # Preprocessing: Scale the data
-    scaler = StandardScaler()
+    random.seed(42)
+    np.random.seed(42)
+    tf.random.set_seed(42)
+    confidence_threshold=0.92
+    smoothing_window=5
+    def extract_features(data):
+        """
+        Enhanced feature extraction with spectral entropy and low-frequency power.
+        """
+        def compute_spectral_entropy(data):
+            from scipy.signal import welch
+            entropy_features = []
+            for row in data:
+                _, power_spectrum = welch(row, nperseg=min(len(row), 60))
+                power_spectrum = power_spectrum / np.sum(power_spectrum)
+                entropy = -np.sum(power_spectrum * np.log2(power_spectrum + 1e-6))
+                entropy_features.append(entropy)
+            return np.array(entropy_features).reshape(-1, 1)
 
-    # Reshape to 2D for scaling
-    X_train = train_data.reshape(train_data.shape[0], -1)  # Flatten
-    X_test = test_data.reshape(test_data.shape[0], -1)  # Flatten
+        def compute_low_frequency_power(data):
+            low_freq_power = []
+            for row in data:
+                fft_coeffs = np.abs(np.fft.rfft(row))
+                low_power = np.sum(fft_coeffs[:10])
+                total_power = np.sum(fft_coeffs)
+                low_freq_power.append(low_power / (total_power + 1e-6))
+            return np.array(low_freq_power).reshape(-1, 1)
+        
+        def compute_mid_frequency_power(data):
+            mid_freq_power = []
+            for row in data:
+                fft_coeffs = np.abs(np.fft.rfft(row))
+                mid_power = np.sum(fft_coeffs[10:30])
+                total_power = np.sum(fft_coeffs)
+                mid_freq_power.append(mid_power / (total_power + 1e-6))
+            return np.array(mid_freq_power).reshape(-1, 1)
 
-    # Apply StandardScaler
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
+        def compute_signal_variance(data):
+            return np.var(data, axis=1).reshape(-1, 1)
 
-    # Reshape back to 3D for LSTM
-    X_train = X_train.reshape((X_train.shape[0], 60, 6))
-    X_test = X_test.reshape((X_test.shape[0], 60, 6))
+        # Existing feature computation
+        mag = np.sqrt(np.sum(data**2, axis=1))
+        high_fft = np.abs(np.fft.rfft(data))[:, 15:30]
 
-    # Adjust train_labels to be 0-indexed for one-hot encoding
-    train_labels = train_labels - 1  # Shift labels from [1, 4] to [0, 3]
+        # New feature computation
+        entropy = compute_spectral_entropy(data)
+        low_freq_power = compute_low_frequency_power(data)
+        mid_freq_power = compute_mid_frequency_power(data)
+        signal_variance = compute_signal_variance(data)
 
-    # One-hot encode train_labels
-    y_train = to_categorical(train_labels, num_classes=4)
+        # Combine all features
+        return np.hstack([mag.reshape(-1, 1), high_fft, entropy, low_freq_power, mid_freq_power, signal_variance])
 
-    # Define the LSTM model
-    model = Sequential()
-    model.add(LSTM(128, input_shape=(X_train.shape[1], X_train.shape[2]), return_sequences=False))
-    model.add(Dropout(0.2))
-    model.add(Dense(64, activation='relu'))  # 64 neurons, ReLU activation
-    model.add(Dropout(0.2))
-    model.add(Dense(4, activation='softmax'))  # 4 output classes
-    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    def augment_data(raw_data, features, labels, target_class=4):
+        """
+        Augment data for the target class using SMOTE, ensuring alignment between raw data and features.
+        """
+        raw_flat = raw_data.reshape(raw_data.shape[0], -1)
+        smote = SMOTE(sampling_strategy={target_class - 1: 2 * np.sum(labels == target_class - 1)}, random_state=42)
+        raw_resampled, labels_resampled = smote.fit_resample(raw_flat, labels)
+        features_resampled, _ = smote.fit_resample(features, labels)
 
-    # Fit the model
-    model.fit(X_train, y_train, epochs=25, batch_size=32, validation_split=0.2, verbose=1)
+        # Reshape raw data back to 3D
+        raw_resampled = raw_resampled.reshape(-1, raw_data.shape[1], raw_data.shape[2])
+        return raw_resampled, features_resampled, labels_resampled
 
-    # Predict on test data
-    y_pred = model.predict(X_test)
-    y_pred_classes = np.argmax(y_pred, axis=1)
+    def create_multitask_model(input_shape_raw, input_shape_features, num_classes=4):
+        # Raw Input
+        input_raw = Input(shape=input_shape_raw, name="raw_input")
+        x = layers.Conv1D(filters=64, kernel_size=3, activation="relu")(input_raw)
+        x = layers.Conv1D(filters=128, kernel_size=5, activation="relu")(x)
+        x = layers.MaxPooling1D(pool_size=2)(x)
+        x = layers.LSTM(128, return_sequences=True)(x)
+        attention = layers.Attention()([x, x])
+        x = layers.GlobalAveragePooling1D()(attention)
 
-    y_pred_classes = y_pred_classes + 1
+        # Feature Input
+        input_features = Input(shape=input_shape_features, name="feature_input")
+        y = layers.Dense(256, activation="relu")(input_features)
+        y = layers.Dropout(0.3, seed=42)(y)
+        y = layers.Dense(128, activation="relu")(y)
 
-    return y_pred_classes
+        # Fusion
+        combined = layers.Concatenate()([x, y])
+        z = layers.Dense(128, activation="relu")(combined)
+        z = layers.Dropout(0.3, seed=42)(z)
 
+        # Main Output
+        main_output = layers.Dense(num_classes, activation="softmax", name="main_output")(z)
 
+        # Auxiliary Outputs
+        aux_output_1 = layers.Dense(1, activation="sigmoid", name="class_1_aux")(z)
+        aux_output_4 = layers.Dense(1, activation="sigmoid", name="class_4_aux")(z)
 
-if __name__ == "__main__":
-    
-    acc_x_train = pd.read_csv('Acc_x_train_1.csv', header=None).values
-    acc_y_train = pd.read_csv('Acc_y_train_1.csv', header=None).values
-    acc_z_train = pd.read_csv('Acc_z_train_1.csv', header=None).values
-    gyro_x_train = pd.read_csv('Gyr_x_train_1.csv', header=None).values
-    gyro_y_train = pd.read_csv('Gyr_y_train_1.csv', header=None).values
-    gyro_z_train = pd.read_csv('Gyr_z_train_1.csv', header=None).values
+        # Model
+        model = models.Model(inputs=[input_raw, input_features], outputs=[main_output, aux_output_1, aux_output_4])
+        model.compile(
+            optimizer="adam",
+            loss={
+                "main_output": "sparse_categorical_crossentropy",
+                "class_1_aux": "binary_crossentropy",
+                "class_4_aux": "binary_crossentropy",
+            },
+            loss_weights={"main_output": 1.0, "class_1_aux": 0.5, "class_4_aux": 0.5},
+            metrics=["accuracy"]
+        )
+        return model
 
-    labels = pd.read_csv('labels_train_1.csv', header=None).values
+    def apply_confidence_threshold(predictions, class_idx, threshold):
+        """
+        Adjust predictions based on a confidence threshold for a specific class.
+        
+        Parameters:
+        - predictions: np.ndarray of shape (num_samples, num_classes), containing probability scores.
+        - class_idx: Index of the class to apply the threshold.
+        - threshold: Confidence threshold for the class.
 
-    data = np.stack([acc_x_train, acc_y_train, acc_z_train, gyro_x_train, gyro_y_train, gyro_z_train], axis=-1)
+        Returns:
+        - Adjusted predictions with the same shape as input.
+        """
+        adjusted_predictions = predictions.copy()
+        confident_indices = predictions[:, class_idx] >= threshold
 
-    scaler = StandardScaler()
-    data_reshaped = data.reshape(-1, data.shape[-1])  
-    data_normalized = scaler.fit_transform(data_reshaped)
-    data_normalized = data_normalized.reshape(data.shape)  
+        # Set all probabilities to zero for confident predictions
+        adjusted_predictions[confident_indices, :] = 0
+        # Assign 100% confidence to the class index for confident predictions
+        adjusted_predictions[confident_indices, class_idx] = 1
+        return adjusted_predictions
 
-    labels_one_hot = to_categorical(labels)
+    def smooth_predictions(predictions, window_size=5):
+        """
+        Apply mode filtering to smooth predictions over a sliding window.
+        
+        Parameters:
+        - predictions: 1D array of predicted class labels (e.g., [1, 2, 2, 4, ...]).
+        - window_size: Size of the sliding window (must be odd for symmetric smoothing).
+        
+        Returns:
+        - Smoothed predictions.
+        """
+        smoothed = predictions.copy()
+        half_window = window_size // 2
 
-    X_train, X_test, y_train, y_test = train_test_split(data_normalized, labels_one_hot, test_size=0.2, random_state=42)
+        for i in range(len(predictions)):
+            start = max(0, i - half_window)
+            end = min(len(predictions), i + half_window + 1)
+            smoothed[i] = mode(predictions[start:end])[0][0]
+        
+        return smoothed
+    """
+    Train a multi-task model with enhanced features and refine predictions for Class 4.
+    """
+    train_labels = train_labels - 1
 
-    print(f"X_train shape: {X_train.shape}")
-    print(f"y_train shape: {y_train.shape}")
-    print(f"X_test shape: {X_test.shape}")
-    print(f"y_test shape: {y_test.shape}")
+    # Feature extraction
+    train_features = np.hstack([
+        extract_features(train_data[:, :, i]) for i in range(train_data.shape[2])
+    ])
+    test_features = np.hstack([
+        extract_features(test_data[:, :, i]) for i in range(test_data.shape[2])
+    ])
 
-    if len(X_train.shape) != 3:
-        raise ValueError(f"X_train has incorrect shape: {X_train.shape}. Expected shape: (samples, time_steps, features).")
+    # Rebalance data for Class 4
+    raw_train, train_features, train_labels = augment_data(train_data, train_features, train_labels, target_class=4)
 
-    if len(y_train.shape) != 2:
-        raise ValueError(f"y_train has incorrect shape: {y_train.shape}. Expected shape: (samples, num_classes).")
+    # Train-validation split
+    raw_train, raw_val, features_train, features_val, labels_train, labels_val = train_test_split(
+        raw_train, train_features, train_labels, test_size=0.2, stratify=train_labels, random_state=42
+    )
 
-    y_pred_classes = predict_test(X_train, y_train, X_test)
-    y_test_classes = np.argmax(y_test, axis=1)
+    # Create multi-task model
+    model = create_multitask_model(
+        input_shape_raw=(train_data.shape[1], train_data.shape[2]),
+        input_shape_features=(train_features.shape[1],),
+        num_classes=4
+    )
 
-    f1_micro = f1_score(y_test_classes, y_pred_classes, average='micro')
-    f1_macro = f1_score(y_test_classes, y_pred_classes, average='macro')
+    # Train multi-task model
+    model.fit(
+        [raw_train, features_train],
+        {"main_output": labels_train, "class_1_aux": (labels_train == 0).astype(int), "class_4_aux": (labels_train == 3).astype(int)},
+        validation_data=(
+            [raw_val, features_val],
+            {"main_output": labels_val, "class_1_aux": (labels_val == 0).astype(int), "class_4_aux": (labels_val == 3).astype(int)},
+        ),
+        epochs= 50,
+        batch_size=32,
+        verbose=1
+    )
 
-    print(f"Micro-averaged F1 score: {f1_micro}")
-    print(f"Macro-averaged F1 score: {f1_macro}")
+    # Predict test data
+    predictions = model.predict([test_data, test_features])[0]  # Main output
+    #predictions[:, 3] *= 1.3  # Boost Class 4 probabilities
+    adjusted_predictions = apply_confidence_threshold(predictions, class_idx=3, threshold=confidence_threshold)
+    final_labels = np.argmax(adjusted_predictions, axis=1) + 1  # Convert to 1-4
+    smoothed_labels = smooth_predictions(final_labels, window_size=smoothing_window)
+
+    return smoothed_labels
