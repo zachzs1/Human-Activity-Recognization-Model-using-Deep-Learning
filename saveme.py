@@ -78,23 +78,23 @@ def predict_test(train_data, train_labels, test_data):
     def create_multitask_model(input_shape_raw, input_shape_features, num_classes=4):
         # Raw Input
         input_raw = Input(shape=input_shape_raw, name="raw_input")
-        x = layers.Conv1D(filters=64, kernel_size=3, activation="relu")(input_raw)
-        x = layers.Conv1D(filters=128, kernel_size=5, activation="relu")(x)
+        x = layers.Conv1D(filters=64, kernel_size=3, activation="relu", kernel_regularizer=regularizers.l2(0.001))(input_raw)
+        x = layers.Conv1D(filters=128, kernel_size=5, activation="relu", kernel_regularizer=regularizers.l2(0.001))(x)
         x = layers.MaxPooling1D(pool_size=2)(x)
-        x = layers.LSTM(128, return_sequences=True)(x)
+        x = layers.LSTM(128, return_sequences=True, kernel_regularizer=regularizers.l2(0.001))(x)
         attention = layers.Attention()([x, x])
         x = layers.GlobalAveragePooling1D()(attention)
 
         # Feature Input
         input_features = Input(shape=input_shape_features, name="feature_input")
-        y = layers.Dense(256, activation="relu")(input_features)
-        y = layers.Dropout(0.3, seed=42)(y)
-        y = layers.Dense(128, activation="relu")(y)
+        y = layers.Dense(256, activation="relu", kernel_regularizer=regularizers.l2(0.001))(input_features)
+        y = layers.Dropout(0.5, seed=42)(y)
+        y = layers.Dense(128, activation="relu", kernel_regularizer=regularizers.l2(0.001))(y)
 
         # Fusion
         combined = layers.Concatenate()([x, y])
-        z = layers.Dense(128, activation="relu")(combined)
-        z = layers.Dropout(0.3, seed=42)(z)
+        z = layers.Dense(128, activation="relu", kernel_regularizer=regularizers.l2(0.001))(combined)
+        z = layers.Dropout(0.5, seed=42)(z)
 
         # Main Output
         main_output = layers.Dense(num_classes, activation="softmax", name="main_output")(z)
