@@ -5,6 +5,11 @@ from sklearn.utils.class_weight import compute_class_weight
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from scipy.stats import mode
+import random
+
+random.seed(42)
+np.random.seed(42)
+tf.random.set_seed(42)
 
 def extract_features(data):
     """
@@ -80,13 +85,13 @@ def create_multitask_model(input_shape_raw, input_shape_features, num_classes=4)
     # Feature Input
     input_features = Input(shape=input_shape_features, name="feature_input")
     y = layers.Dense(256, activation="relu")(input_features)
-    y = layers.Dropout(0.3)(y)
+    y = layers.Dropout(0.3, seed=42)(y)
     y = layers.Dense(128, activation="relu")(y)
 
     # Fusion
     combined = layers.Concatenate()([x, y])
     z = layers.Dense(128, activation="relu")(combined)
-    z = layers.Dropout(0.3)(z)
+    z = layers.Dropout(0.3, seed=42)(z)
 
     # Main Output
     main_output = layers.Dense(num_classes, activation="softmax", name="main_output")(z)
@@ -170,7 +175,7 @@ def predict_test(train_data, train_labels, test_data, confidence_threshold=0.92,
 
     # Train-validation split
     raw_train, raw_val, features_train, features_val, labels_train, labels_val = train_test_split(
-        raw_train, train_features, train_labels, test_size=0.2, stratify=train_labels
+        raw_train, train_features, train_labels, test_size=0.2, stratify=train_labels, random_state=42
     )
 
     # Create multi-task model
