@@ -13,8 +13,8 @@ from Classify_activity import predict_test
 from sklearn.metrics import classification_report, confusion_matrix
 
 sensor_names = ['Acc_x', 'Acc_y', 'Acc_z', 'Gyr_x', 'Gyr_y', 'Gyr_z']
-train_suffix = '_train_1.csv'
-test_suffix = '_train_2.csv'
+train_suffix = '_train_2.csv'
+test_suffix = '_train_1.csv'
 
 def load_sensor_data(sensor_names, suffix):
     data_slice_0 = np.loadtxt(sensor_names[0] + suffix, delimiter=',')
