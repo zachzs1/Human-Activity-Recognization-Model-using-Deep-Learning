@@ -194,7 +194,7 @@ def predict_test(train_data, train_labels, test_data):
             [raw_val, features_val],
             {"main_output": labels_val, "class_1_aux": (labels_val == 0).astype(int), "class_4_aux": (labels_val == 3).astype(int)},
         ),
-        epochs= 50,
+        epochs= 100,
         batch_size=32,
         verbose=1
     )
