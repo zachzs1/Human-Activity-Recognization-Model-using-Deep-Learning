@@ -4,11 +4,14 @@ from tensorflow.keras import layers, models, Input
 from sklearn.utils.class_weight import compute_class_weight
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
-from scipy.signal import savgol_filter
-from scipy.signal import welch
+from scipy.signal import savgol_filter, welch
 
 # Feature Engineering Functions
 def extract_features(data):
+    """
+    Extract enhanced features including entropy, low-frequency power,
+    mid-frequency power, and transition statistics.
+    """
     def compute_spectral_entropy(data):
         entropy_features = []
         for row in data:
@@ -18,29 +21,37 @@ def extract_features(data):
             entropy_features.append(entropy)
         return np.array(entropy_features).reshape(-1, 1)
 
-    def compute_low_frequency_power(data):
-        low_freq_power = []
+    def compute_frequency_power(data, start, end):
+        power = []
         for row in data:
             fft_coeffs = np.abs(np.fft.rfft(row))
-            low_power = np.sum(fft_coeffs[:10])
+            band_power = np.sum(fft_coeffs[start:end])
             total_power = np.sum(fft_coeffs)
-            low_freq_power.append(low_power / (total_power + 1e-6))
-        return np.array(low_freq_power).reshape(-1, 1)
+            power.append(band_power / (total_power + 1e-6))
+        return np.array(power).reshape(-1, 1)
 
     def compute_signal_variance(data):
         return np.var(data, axis=1).reshape(-1, 1)
 
+    def compute_jerk(data):
+        return np.mean(np.abs(np.diff(data, axis=1)), axis=1).reshape(-1, 1)
+
     mag = np.sqrt(np.sum(data**2, axis=1))
     entropy = compute_spectral_entropy(data)
-    low_freq_power = compute_low_frequency_power(data)
+    low_freq_power = compute_frequency_power(data, 0, 10)
+    mid_freq_power = compute_frequency_power(data, 10, 30)
     signal_variance = compute_signal_variance(data)
+    jerk = compute_jerk(data)
 
-    return np.hstack([mag.reshape(-1, 1), entropy, low_freq_power, signal_variance])
+    return np.hstack([mag.reshape(-1, 1), entropy, low_freq_power, mid_freq_power, signal_variance, jerk])
 
 # Data Augmentation
-def augment_data(raw_data, features, labels, target_class=4):
+def augment_data(raw_data, features, labels, target_classes=[1, 4]):
+    """
+    Augment data for specified target classes using SMOTE.
+    """
     raw_flat = raw_data.reshape(raw_data.shape[0], -1)
-    smote = SMOTE(sampling_strategy={target_class - 1: 2 * np.sum(labels == target_class - 1)}, random_state=42)
+    smote = SMOTE(sampling_strategy={cls - 1: int(1.5 * np.sum(labels == cls - 1)) for cls in target_classes}, random_state=42)
     raw_resampled, labels_resampled = smote.fit_resample(raw_flat, labels)
     features_resampled, _ = smote.fit_resample(features, labels)
     raw_resampled = raw_resampled.reshape(-1, raw_data.shape[1], raw_data.shape[2])
@@ -54,14 +65,18 @@ def preprocess_data(data):
 
 # Postprocessing: Temporal Smoothing and Adjustment
 def refine_predictions(predictions, window_size=3):
-    smoothed_predictions = []
+    refined_predictions = []
     for i in range(len(predictions)):
         window_start = max(0, i - window_size // 2)
         window_end = min(len(predictions), i + window_size // 2 + 1)
         window = predictions[window_start:window_end]
-        smoothed_predictions.append(np.bincount(window).argmax())
-    return np.array(smoothed_predictions)
+        if predictions[i] == 1 and np.any(window == 4):
+            refined_predictions.append(4)
+        else:
+            refined_predictions.append(np.bincount(window).argmax())
+    return np.array(refined_predictions)
 
+# Model Creation
 def create_multitask_model(input_shape_raw, input_shape_features, num_classes=4):
     input_raw = Input(shape=input_shape_raw, name="raw_input")
     x = layers.Conv1D(filters=64, kernel_size=3, activation="relu")(input_raw)
@@ -92,11 +107,12 @@ def create_multitask_model(input_shape_raw, input_shape_features, num_classes=4)
             "class_1_aux": "binary_crossentropy",
             "class_4_aux": "binary_crossentropy",
         },
-        loss_weights={"main_output": 1.0, "class_1_aux": 0.5, "class_4_aux": 0.5},
+        loss_weights={"main_output": 1.0, "class_1_aux": 0.5, "class_4_aux": 1.0},
         metrics=["accuracy"]
     )
     return model
 
+# Prediction Function
 def predict_test(train_data, train_labels, test_data):
     train_labels = train_labels - 1
 
@@ -110,7 +126,7 @@ def predict_test(train_data, train_labels, test_data):
         extract_features(test_data[:, :, i]) for i in range(test_data.shape[2])
     ])
 
-    raw_train, train_features, train_labels = augment_data(train_data, train_features, train_labels, target_class=4)
+    raw_train, train_features, train_labels = augment_data(train_data, train_features, train_labels, target_classes=[1, 4])
 
     raw_train, raw_val, features_train, features_val, labels_train, labels_val = train_test_split(
         raw_train, train_features, train_labels, test_size=0.2, stratify=train_labels
