@@ -2,11 +2,10 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from imblearn.over_sampling import SMOTE
+from scipy.signal import welch
 from scipy.stats import zscore
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from sklearn.decomposition import PCA
-from sklearn.model_selection import cross_val_score
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
 
 # Load data
 acc_x_train = pd.read_csv('Acc_x_train_1.csv', header=None).values
@@ -36,9 +35,157 @@ gyro_z_train_combined = np.vstack((gyro_z_train, gyro_z_train_2))
 # Combine labels
 labels = np.vstack((labels_1, labels_2))
 
+# Combine sensor data into a single array (samples × time steps × channels)
+data = np.stack(
+    [acc_x_train_combined, acc_y_train_combined, acc_z_train_combined,
+     gyro_x_train_combined, gyro_y_train_combined, gyro_z_train_combined], axis=2
+)
 
-# Combine sensor data into a single array
-data = np.stack([acc_x_train_combined, acc_y_train_combined, acc_z_train_combined, gyro_x_train_combined, gyro_y_train_combined, gyro_z_train_combined], axis=-1)
+
+def augment_data(raw_data, features, labels, target_class=4):
+    """
+    Augment data for the target class using SMOTE, ensuring alignment between raw data and features.
+    """
+    raw_flat = raw_data.reshape(raw_data.shape[0], -1)
+    smote = SMOTE(sampling_strategy={target_class - 1: 2 * np.sum(labels == target_class - 1)}, random_state=42)
+    raw_resampled, labels_resampled = smote.fit_resample(raw_flat, labels)
+    features_resampled, _ = smote.fit_resample(features, labels)
+
+    # Reshape raw data back to 3D
+    raw_resampled = raw_resampled.reshape(-1, raw_data.shape[1], raw_data.shape[2])
+    return raw_resampled, features_resampled, labels_resampled
+
+
+# Visualization of SMOTE Process
+def visualize_smote(raw_data, features, labels, target_class=4):
+    """
+    Visualize the effects of SMOTE augmentation on the dataset.
+    """
+    # Original class distribution
+    labels_flat = labels.flatten()
+    class_counts_original = pd.Series(labels_flat).value_counts().sort_index()
+
+    print("Original Class Distribution:")
+    print(class_counts_original)
+
+    # Perform augmentation
+    raw_resampled, features_resampled, labels_resampled = augment_data(raw_data, features, labels_flat, target_class)
+
+    # Augmented class distribution
+    labels_resampled_series = pd.Series(labels_resampled).value_counts().sort_index()
+
+    print("\nAugmented Class Distribution:")
+    print(labels_resampled_series)
+
+    # Plot original vs augmented class distributions
+    plt.figure(figsize=(10, 5))
+    sns.barplot(x=class_counts_original.index, y=class_counts_original.values, color="blue", alpha=0.7,
+                label="Original")
+    sns.barplot(x=labels_resampled_series.index, y=labels_resampled_series.values, color="orange", alpha=0.7,
+                label="Augmented")
+    plt.title("Class Distribution Before and After SMOTE")
+    plt.xlabel("Class")
+    plt.ylabel("Frequency")
+    plt.legend()
+    plt.show()
+
+    # Visualize feature distributions before and after augmentation for a specific class
+    target_class_idx = target_class - 1  # Convert class label to zero-indexed
+    original_features = features[labels_flat == target_class_idx]
+    augmented_features = features_resampled[labels_resampled == target_class_idx]
+
+    feature_names = [f"Feature_{i}" for i in range(features.shape[1])]
+
+    print("\nVisualizing Feature Distributions for Target Class:")
+    for i, feature_name in enumerate(feature_names[:5]):  # Limit to first 5 features for clarity
+        plt.figure(figsize=(8, 4))
+        sns.kdeplot(original_features[:, i], color="blue", label="Original", fill=True, alpha=0.3)
+        sns.kdeplot(augmented_features[:, i], color="orange", label="Augmented", fill=True, alpha=0.3)
+        plt.title(f"Feature {i + 1} Distribution (Target Class {target_class})")
+        plt.xlabel(feature_name)
+        plt.ylabel("Density")
+        plt.legend()
+        plt.show()
+
+
+# Example Usage
+# Assuming `data`, `features`, and `labels` are preloaded
+# For this example, let's assume features are just a flattened version of the data
+features = data.reshape(data.shape[0], -1)  # Flatten data into 2D features for SMOTE
+visualize_smote(data, features, labels, target_class=4)
+
+
+'''
+# Define feature extraction functions
+def compute_spectral_entropy(data):
+    entropy_features = []
+    for row in data:
+        _, power_spectrum = welch(row, nperseg=min(len(row), 30))
+        power_spectrum = power_spectrum / np.sum(power_spectrum)
+        entropy = -np.sum(power_spectrum * np.log2(power_spectrum + 1e-6))
+        entropy_features.append(entropy)
+    return np.array(entropy_features).reshape(-1, 1)
+
+def compute_low_frequency_power(data):
+    low_freq_power = []
+    for row in data:
+        fft_coeffs = np.abs(np.fft.rfft(row))
+        low_power = np.sum(fft_coeffs[:10])
+        total_power = np.sum(fft_coeffs)
+        low_freq_power.append(low_power / (total_power + 1e-6))
+    return np.array(low_freq_power).reshape(-1, 1)
+
+def compute_mid_frequency_power(data):
+    mid_freq_power = []
+    for row in data:
+        fft_coeffs = np.abs(np.fft.rfft(row))
+        mid_power = np.sum(fft_coeffs[10:30])
+        total_power = np.sum(fft_coeffs)
+        mid_freq_power.append(mid_power / (total_power + 1e-6))
+    return np.array(mid_freq_power).reshape(-1, 1)
+
+def compute_signal_variance(data):
+    return np.var(data, axis=1).reshape(-1, 1)
+
+# Apply feature engineering
+entropy = compute_spectral_entropy(data_flat)
+low_freq_power = compute_low_frequency_power(data_flat)
+mid_freq_power = compute_mid_frequency_power(data_flat)
+variance = compute_signal_variance(data_flat)
+
+# Combine features into a single dataframe
+features = np.hstack([entropy, low_freq_power, mid_freq_power, variance])
+feature_names = ['Entropy', 'Low_Freq_Power', 'Mid_Freq_Power', 'Variance']
+features_df = pd.DataFrame(features, columns=feature_names)
+
+# Visualize each feature
+print("\nVisualizing Each Feature Distribution:")
+for feature_name in feature_names:
+    sns.histplot(features_df[feature_name], kde=True)
+    plt.title(f"Distribution of {feature_name}")
+    plt.show()
+
+# Pairplot of all extracted features
+print("\nPairplot of Extracted Features:")
+sns.pairplot(features_df)
+plt.title("Pairplot of Extracted Features")
+plt.show()
+
+# Correlation heatmap
+print("\nHeatmap of Feature Correlations:")
+correlation_matrix = features_df.corr()
+sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt='.2f')
+plt.title("Correlation Heatmap of Extracted Features")
+plt.show()
+
+# Z-Score for outlier detection
+print("\nOutlier Detection with Z-Score:")
+z_scores = np.abs(zscore(features_df))
+outliers = np.any(z_scores > 3, axis=1)
+print(f"Number of Outliers Detected: {np.sum(outliers)}")
+sns.boxplot(data=features_df, orient="h")
+plt.title("Boxplot of Extracted Features (Outliers Highlighted)")
+plt.show()
 
 # EDA Step 1: Initial Dataset Overview
 print("1. Initial Dataset Overview")
@@ -148,3 +295,4 @@ plt.figure(figsize=(12, 8))
 sns.heatmap(np.corrcoef(data_flat, rowvar=False), annot=True, cmap='coolwarm', fmt='.2f')
 plt.title("Pairwise Correlations Between Features")
 plt.show()
+'''

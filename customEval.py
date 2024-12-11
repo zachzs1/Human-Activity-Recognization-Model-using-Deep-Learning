@@ -39,7 +39,7 @@ train_data = np.vstack((train_1_data, train_2_data))
 
 # Create train-test split
 train_data_split, test_data_split, train_labels_split, test_labels_split = train_test_split(
-    train_data, train_labels, test_size=0.2, random_state= 42, shuffle=False)
+    train_data, train_labels, test_size=0.2, random_state= 34563457, shuffle=False)
 
 # Predict activities on test data
 test_outputs = predict_test(train_data_split, train_labels_split, test_data_split)
